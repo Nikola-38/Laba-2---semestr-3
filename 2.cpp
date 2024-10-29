@@ -1,116 +1,125 @@
 #include <iostream>
-#include <string>
-#include "windows.h"
 #include <fstream>
 #include <sstream>
+#include <string>
 
 using namespace std;
 
 struct Node {
-    string data;
-    Node* next;
+    string data; // Данные узла
+    Node* next;  // Указатель на следующий узел
 };
 
-struct Set {
-    Node* head;
+struct HashSet {
+    Node** table; // Указатель на массив указателей на узлы
+    int size;     // Размер хеш-таблицы
 
-    Set() : head(nullptr) {}
+    // Конструктор
+    HashSet(int tableSize) : size(tableSize) {
+        table = new Node*[size];
+        for (int i = 0; i < size; ++i) {
+            table[i] = nullptr; // Инициализация указателей
+        }
+    }
 
-    ~Set() {
-        clear();
+    // Деструктор
+    ~HashSet() {
+        clear(); // Освобождение памяти в деструкторе
+        delete[] table; // Освобождение массива указателей
     }
 
     void clear() {
-        while (head) {
-            Node* temp = head;
-            head = head->next;
-            delete temp; // Освобождаем память текущего узла
+        for (int i = 0; i < size; ++i) {
+            Node* current = table[i];
+            while (current) {
+                Node* temp = current;
+                current = current->next;
+                delete temp; // Освобождаем память текущего узла
+            }
+            table[i] = nullptr; // Обнуляем указатель
         }
     }
 
     bool contains(const string& value) const {
-        Node* current = head;
+        int index = hash(value);
+        Node* current = table[index];
         while (current) {
             if (current->data == value) {
-                return true;
+                return true; // Элемент найден
             }
             current = current->next;
         }
-        return false;
+        return false; // Элемент не найден
     }
 
     void add(const string& value) {
         if (contains(value)) return; // Если элемент уже существует, ничего не делаем
 
-        Node* newNode = new Node{value, nullptr};
-
-        if (!head || head->data > value) {
-            // Вставка в начало списка
-            newNode->next = head;
-            head = newNode;
-            return;
-        }
-
-        // Поиск позиции для вставки
-        Node* current = head;
-        while (current->next && current->next->data < value) {
-            current = current->next;
-        }
-
-        newNode->next = current->next;
-        current->next = newNode;
+        int index = hash(value);
+        Node* newNode = new Node{value, table[index]};
+        table[index] = newNode; // Вставка в начало цепочки
     }
 
     void remove(const string& value) {
-        if (!head) return;
+        int index = hash(value);
+        Node* current = table[index];
+        Node* prev = nullptr;
 
-        if (head->data == value) {
-            Node* temp = head;
-            head = head->next; // Удаляем первый элемент
-            delete temp; // Освобождаем память
-            return;
-        }
-
-        Node* current = head;
-        while (current->next) {
-            if (current->next->data == value) {
-                Node* temp = current->next;
-                current->next = current->next->next; // Удаляем узел
-                delete temp; // Освобождаем память
+        while (current) {
+            if (current->data == value) {
+                if (prev) {
+                    prev->next = current->next; // Удаляем узел
+                } else {
+                    table[index] = current->next; // Удаляем первый узел
+                }
+                delete current; // Освобождаем память
                 return;
             }
+            prev = current;
             current = current->next;
-        }
-    }
-
-    void saveToFile(const string& filePath) const {
-        ofstream outFile(filePath);
-        if (outFile.is_open()) {
-            Node* current = head;
-            while (current) {
-                outFile << current->data << endl;
-                current = current->next;
-            }
-        } else {
-            cerr << "Не удалось открыть файл для записи: " << filePath << endl;
         }
     }
 
     void loadFromFile(const string& filePath) {
-        ifstream inFile(filePath);
-        if (inFile.is_open()) {
-            clear();  // Очистка текущего множества
-            string value;
-            while (getline(inFile, value)) {
-                add(value);
-            }
-        } else {
-            cerr << "Не удалось открыть файл для чтения: " << filePath << endl;
+        ifstream file(filePath);
+        if (!file) {
+            cerr << "Ошибка открытия файла: " << filePath << endl;
+            return;
         }
+        string value;
+        while (getline(file, value)) {
+            add(value); // Добавляем каждую строку в множество
+        }
+        file.close();
+    }
+
+    void saveToFile(const string& filePath) {
+        ofstream file(filePath);
+        if (!file) {
+            cerr << "Ошибка открытия файла для записи: " << filePath << endl;
+            return;
+        }
+        for (int i = 0; i < size; ++i) {
+            Node* current = table[i];
+            while (current) {
+                file << current->data << endl; // Записываем данные в файл
+                current = current->next;
+            }
+        }
+        file.close();
+    }
+
+private:
+    int hash(const string& value) const {
+        int hashValue = 0;
+        for (char c : value) {
+            hashValue = (hashValue * 31 + c) % size; // Простейшая хеш-функция
+        }
+        return hashValue;
     }
 };
 
-void processQuery(Set& mySet, const string& operation, const string& value) {
+void processQuery(HashSet& mySet, const string& operation, const string& value) {
     if (operation == "SETADD") {
         mySet.add(value);
         cout << "Добавлено: " << value << endl;
@@ -118,16 +127,13 @@ void processQuery(Set& mySet, const string& operation, const string& value) {
         mySet.remove(value);
         cout << "Удалено: " << value << endl;
     } else if (operation == "SET_AT") {
-        if (mySet.contains(value)) {
-            cout << "Элемент " << value << " находится в множестве." << endl;
-        } else {
-            cout << "Элемент " << value << " не найден в множестве." << endl;
-        }
+        cout << "Содержит " << value << ": " << (mySet.contains(value) ? "Да" : "Нет") << endl;
+    } else {
+        cout << "Неизвестная операция: " << operation << endl;
     }
 }
 
 int main(int argc, char* argv[]) {
-    system("chcp 65001");
     string filePath;
     string operation;
     string value;
@@ -141,7 +147,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    Set mySet;
+    HashSet mySet(100); // Создаем хеш-таблицу с размером 100
     mySet.loadFromFile(filePath); // Загружаем множество из файла
 
     // Обработка запроса
@@ -151,5 +157,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
-
