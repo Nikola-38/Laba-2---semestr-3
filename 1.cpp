@@ -6,7 +6,11 @@ using namespace std;
 
 // Узел стека
 struct NodeS {
-    int data;
+    bool isOperator; // Флаг, указывающий, является ли элемент оператором
+    union {
+        int number;   // Для хранения числа
+        char op;      // Для хранения оператора
+    };
     NodeS* next;
 };
 
@@ -15,25 +19,34 @@ struct Stack {
     NodeS* head = nullptr;
 };
 
-// Добавление элемента в стек (push)
-void pushS(Stack* stack, int data) {
-    NodeS* new_NodeS = new NodeS{data, nullptr};
-    new_NodeS->next = stack->head;
-    stack->head = new_NodeS;
+// Добавление числа в стек
+void pushNumber(Stack* stack, int number) {
+    NodeS* newNode = new NodeS;
+    newNode->isOperator = false;
+    newNode->number = number;
+    newNode->next = stack->head;
+    stack->head = newNode;
 }
 
-// Удаление элемента из стека (pop)
-int popS(Stack* stack) {
+// Добавление оператора в стек
+void pushOperator(Stack* stack, char op) {
+    NodeS* newNode = new NodeS;
+    newNode->isOperator = true;
+    newNode->op = op;
+    newNode->next = stack->head;
+    stack->head = newNode;
+}
+
+// Удаление элемента из стека
+NodeS* pop(Stack* stack) {
     if (stack->head == nullptr) {
         cout << "Стек пуст!" << endl;
-        return 0;
+        return nullptr;
     }
 
     NodeS* temp = stack->head;
-    int data = temp->data;
     stack->head = stack->head->next;
-    delete temp;
-    return data;
+    return temp;
 }
 
 // Функция для определения приоритета операторов
@@ -46,8 +59,7 @@ int precedence(char op) {
 // Функция для конвертации выражения в постфиксное
 string infixToPostfix(const string& expression) {
     string result;
-    Stack operators; // Используем собственный стек для операторов
-    operators.head = nullptr; // Инициализация
+    Stack operators;
 
     for (size_t i = 0; i < expression.length(); i++) {
         char token = expression[i];
@@ -58,24 +70,37 @@ string infixToPostfix(const string& expression) {
                 result += expression[i++];
             }
             result += ' '; // Добавляем пробел между числами
-            i--; // Вернуться на один шаг назад, так как цикл увеличивает i
+            i--; // Вернуться на один шаг назад
         }
-        // Если оператор, обрабатываем его
+        // Если оператор
         else if (token == '+' || token == '-' || token == '*' || token == '/') {
-            while (operators.head != nullptr && precedence(operators.head->data) >= precedence(token)) {
-                result += (char)operators.head->data;
+            while (operators.head != nullptr && precedence(operators.head->op) >= precedence(token)) {
+                result += operators.head->op;
                 result += ' ';
-                popS(&operators);
+                pop(&operators);
             }
-            pushS(&operators, token);
+            pushOperator(&operators, token);
+        }
+        // Если открывающая скобка
+        else if (token == '(') {
+            pushOperator(&operators, token);
+        }
+        // Если закрывающая скобка
+        else if (token == ')') {
+            while (operators.head != nullptr && operators.head->op != '(') {
+                result += operators.head->op;
+                result += ' ';
+                pop(&operators);
+            }
+            pop(&operators); // Удаляем '(' из стека
         }
     }
 
     // Добавляем оставшиеся операторы
     while (operators.head != nullptr) {
-        result += (char)operators.head->data;
+        result += operators.head->op;
         result += ' ';
-        popS(&operators);
+        pop(&operators);
     }
 
     return result;
@@ -96,24 +121,32 @@ int evaluatePostfix(const string& expression) {
         token = expression.substr(pos, end - pos);
         pos = end + 1;
 
-        if (isdigit(token[0]) || (token[0] == '-' && token.length() > 1)) {
-            pushS(&stack, stoi(token));
+        if (isdigit(token[0])) {
+            pushNumber(&stack, stoi(token));
         } else if (!token.empty()) {
-            int operand2 = popS(&stack);
-            int operand1 = popS(&stack);
-            int result = 0;
+            NodeS* operand2Node = pop(&stack);
+            NodeS* operand1Node = pop(&stack);
+            if (operand1Node && operand2Node) {
+                int operand2 = operand2Node->number;
+                int operand1 = operand1Node->number;
+                int result = 0;
 
-            if (token == "+") result = operand1 + operand2;
-            else if (token == "-") result = operand1 - operand2;
-            else if (token == "*") result = operand1 * operand2;
-            else if (token == "/") {
-                if (operand2 == 0) {
-                    cout << "Ошибка: деление на ноль!" << endl;
-                    return 0;
+                if (token == "+") result = operand1 + operand2;
+                else if (token == "-") result = operand1 - operand2;
+                else if (token == "*") result = operand1 * operand2;
+                else if (token == "/") {
+                    if (operand2 == 0) {
+                        cout << "Ошибка: деление на ноль!" << endl;
+                        delete operand1Node;
+                        delete operand2Node;
+                        return 0;
+                    }
+                    result = operand1 / operand2;
                 }
-                result = operand1 / operand2;
+                pushNumber(&stack, result);
+                delete operand1Node;
+                delete operand2Node; // Освобождаем память
             }
-            pushS(&stack, result);
         }
 
         if (end >= expression.length()) {
@@ -121,11 +154,12 @@ int evaluatePostfix(const string& expression) {
         }
     }
 
-    return popS(&stack);
+    int finalResult = pop(&stack)->number;
+    delete stack.head; // Освобождаем память
+    return finalResult;
 }
 
 int main() {
-    system("chcp 65001");
     string infixExpression;
 
     cout << "Введите выражение: ";
