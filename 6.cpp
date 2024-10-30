@@ -1,6 +1,5 @@
 #include <iostream>
 #include <string>
-#include "windows.h"
 
 using namespace std;
 
@@ -9,44 +8,86 @@ struct RomanNumeral {
     const char* symbol;   // Римский символ
 };
 
-// Хэш-таблица римских цифр
-struct HashTable {
-    RomanNumeral table[13];
+struct HashNode {
+    RomanNumeral numeral;
+    HashNode* next;
+};
 
+class HashTable {
+private:
+    HashNode* table[13]; // Массив указателей на узлы
+
+public:
     // Конструктор
     HashTable() {
+        // Инициализация таблицы
+        for (int i = 0; i < 13; ++i) {
+            table[i] = nullptr;
+        }
         // Заполнение таблицы
-        table[0] = {1000, "M"};
-        table[1] = {900, "CM"};
-        table[2] = {500, "D"};
-        table[3] = {400, "CD"};
-        table[4] = {100, "C"};
-        table[5] = {90, "XC"};
-        table[6] = {50, "L"};
-        table[7] = {40, "XL"};
-        table[8] = {10, "X"};
-        table[9] = {9, "IX"};
-        table[10] = {5, "V"};
-        table[11] = {4, "IV"};
-        table[12] = {1, "I"};
+        insert(1000, "M");
+        insert(900, "CM");
+        insert(500, "D");
+        insert(400, "CD");
+        insert(100, "C");
+        insert(90, "XC");
+        insert(50, "L");
+        insert(40, "XL");
+        insert(10, "X");
+        insert(9, "IX");
+        insert(5, "V");
+        insert(4, "IV");
+        insert(1, "I");
+    }
+
+    // Метод для вставки узла в хэш-таблицу
+    void insert(int value, const char* symbol) {
+        HashNode* newNode = new HashNode{{value, symbol}, nullptr};
+        for (int i = 0; i < 13; ++i) {
+            if (table[i] == nullptr) {
+                table[i] = newNode;
+                return;
+            }
+        }
+    }
+
+    // Метод для получения римского символа по его значению
+    const char* getSymbol(int value) {
+        for (int i = 0; i < 13; ++i) {
+            if (table[i] != nullptr && table[i]->numeral.value == value) {
+                return table[i]->numeral.symbol;
+            }
+        }
+        return nullptr; // Если не найдено
+    }
+
+    // Деструктор для освобождения памяти
+    ~HashTable() {
+        for (int i = 0; i < 13; ++i) {
+            HashNode* current = table[i];
+            while (current != nullptr) {
+                HashNode* toDelete = current;
+                current = current->next;
+                delete toDelete;
+            }
+        }
     }
 };
 
-string intToRoman(int num, const HashTable& hashTable) {
+string intToRoman(int num, HashTable& hashTable) {
     string result;
 
     // Проходим по хэш-таблице
-    for (int i = 0; i < 13; ++i) {
-        while (num >= hashTable.table[i].value) {
-            result += hashTable.table[i].symbol; // Добавляем римский символ
-            num -= hashTable.table[i].value;     // Уменьшаем число
+    for (int value : {1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1}) {
+        while (num >= value) {
+            result += hashTable.getSymbol(value); // Добавляем римский символ
+            num -= value;                         // Уменьшаем число
         }
     }
     return result;
 }
 
 int main() {
-    system("chcp 65001");
     int number;
     cout << "Введите целое число (1-3999): ";
     cin >> number;
@@ -62,5 +103,3 @@ int main() {
 
     return 0;
 }
-
-
