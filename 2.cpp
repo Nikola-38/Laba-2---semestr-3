@@ -53,11 +53,21 @@ struct HashSet {
     }
 
     void add(const string& value) {
-        if (contains(value)) return; // Если элемент уже существует, ничего не делаем
+        if (contains(value)) {
+            cout << "Уже есть значение в set:" << value << endl;
+            return; // Если элемент уже существует, ничего не делаем
+        }
 
         int index = hash(value);
-        Node* newNode = new Node{value, table[index]};
-        table[index] = newNode; // Вставка в начало цепочки
+        Node* newNode = new Node{value, nullptr};
+
+        // Вставка в начало цепочки
+        if (table[index] == nullptr) {
+            table[index] = newNode; 
+        } else {
+            newNode->next = table[index];
+            table[index] = newNode;
+        }
     }
 
     void remove(const string& value) {
@@ -113,7 +123,7 @@ private:
     int hash(const string& value) const {
         int hashValue = 0;
         for (char c : value) {
-            hashValue = (hashValue * 31 + c) % size; // Простейшая хеш-функция
+            hashValue = (hashValue * 31 + c) % size; 
         }
         return hashValue;
     }
@@ -122,7 +132,6 @@ private:
 void processQuery(HashSet& mySet, const string& operation, const string& value) {
     if (operation == "SETADD") {
         mySet.add(value);
-        cout << "Добавлено: " << value << endl;
     } else if (operation == "SETDEL") {
         mySet.remove(value);
         cout << "Удалено: " << value << endl;
